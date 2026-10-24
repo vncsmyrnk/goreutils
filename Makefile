@@ -1,6 +1,7 @@
+all: cat tee
+
+tee: tee.c
 cat: cat.c
 
-all: cat
-
 clean:
-	rm cat
+	rm -f cat tee
