@@ -2,8 +2,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <string.h>
 
 #define BUF_SIZE 1024
+
+void usage(FILE *f, char* arg0) {
+    fprintf(f, "usage: %s [OPTIONS]... [FILE]...\n"
+               "\nOptions:\n"
+               "  --help  display this help section\n", arg0);
+}
 
 ssize_t print_fd(int fd, size_t buf_size) {
     char c[buf_size];
@@ -22,6 +29,16 @@ ssize_t print_fd(int fd, size_t buf_size) {
 
 int main(int argc, char **argv) {
     int i;
+    for (i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--help") == 0) {
+            usage(stdout, argv[0]);
+            exit(EXIT_SUCCESS);
+        } else if (argv[i][0] == '-') {
+            usage(stderr, argv[0]);
+            exit(EXIT_FAILURE);
+        }
+    }
+
     for (i = 1; i < argc; i++) {
         int fd = open(argv[i], O_RDONLY);
         if (fd == -1) {
