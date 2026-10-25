@@ -6,9 +6,27 @@
 
 #define BUF_SIZE 1024
 
+void usage(FILE *f, char *arg0) {
+    fprintf(f, "usage: %s [OPTIONS]... [FILE]...\n"
+               "\nOptions:\n"
+               "  --help  display this help message\n", arg0);
+}
+
 int main(int argc, char **argv) {
     if (argc < 2) {
+        usage(stderr, argv[0]);
         exit(EXIT_FAILURE);
+    }
+
+    int i;
+    for (i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--help") == 0) {
+            usage(stdout, argv[0]);
+            exit(EXIT_SUCCESS);
+        } else if (argv[i][0] == '-') {
+            usage(stderr, argv[0]);
+            exit(EXIT_FAILURE);
+        }
     }
 
     int *fds = calloc(argc, sizeof(int));
@@ -17,7 +35,7 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    int i, fcount = 0;
+    int fcount = 0;
     for (i = 1; i < argc; i++) {
         int fd = open(argv[i], O_WRONLY | O_CREAT | O_TRUNC);
         if (fd == -1) {
