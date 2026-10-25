@@ -9,6 +9,13 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - run: sudo apt install valgrind
-      - run: make
-      - run: make valgrind
+      - uses: cachix/install-nix-action@v31
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+
+      - run: nix flake check
+
+      - run: nix develop --command make
+      - run: nix develop --command make lint
+      - run: nix develop --command make check
+      - run: nix develop --command make valgrind

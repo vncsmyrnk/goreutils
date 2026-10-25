@@ -1,12 +1,54 @@
-all: cat tee
+CFLAGS ?= $(shell cat compile_flags.txt)
+ifeq ($(CC), gcc)
+	CFLAGS += -fanalyzer
+endif
 
-tee: tee.c
-cat: cat.c
+SRCS = $(wildcard *.c)
+PROGRAMS = $(subst .c,,$(wildcard *.c))
+test_OBJS = $(patsubst %.c,%.o,$(wildcard test/*.c))
+test_SRCS = $(wildcard test/*.c)
+test_PROGRAM = test/runner
 
+VALGRIND = valgrind
+VALGRIND_FLAGS = --tool=memcheck --leak-check=yes --track-origins=yes --error-exitcode=1 -s
+
+.PHONY: all
+all: $(PROGRAMS)
+
+$(test_PROGRAM): $(test_OBJS)
+	$(LINK.c) $^ -o $@
+
+
+.PHONY: check
+check: CFLAGS += -g
+check: $(test_PROGRAM) $(PROGRAMS)
+	@for t in $(PROGRAMS); do \
+		echo "TEST ./$(test_PROGRAM)" "test/use-cases/$$t" "$$t"; \
+		"./$(test_PROGRAM)" "test/use-cases/$$t" "$$t" --skip read-files; \
+		result=$$?; \
+		if [ $$result -ne 0 ]; then \
+			fail=$$result; \
+		fi; \
+	done; \
+	[ -z $$fail ];
+
+.PHONY: clean
 clean:
-	rm -f cat tee
+	rm -f $(PROGRAMS) $(test_OBJS) $(test_PROGRAM)
+
+.PHONY: lint
+lint:
+	clang-tidy $(SRCS) $(test_SRCS)
 
 .PHONY: valgrind
-valgrind: SHELL:=/bin/bash
-valgrind: tee
-	valgrind --tool=memcheck --leak-check=yes --error-exitcode=1 ./tee $$(mktemp) < <(echo "test input")
+valgrind: CFLAGS += -g
+valgrind: $(test_PROGRAM) $(PROGRAMS)
+	@for t in $(PROGRAMS); do \
+		echo "TEST ./$(test_PROGRAM)" "test/use-cases/$$t" "$$t"; \
+		$(VALGRIND) $(VALGRIND_FLAGS) "./$(test_PROGRAM)" "test/use-cases/$$t" "$$t" --skip read-files; \
+		result=$$?; \
+		if [ $$result -ne 0 ]; then \
+			fail=$$result; \
+		fi; \
+	done; \
+	[ -z $$fail ];

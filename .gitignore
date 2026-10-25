@@ -1,2 +1,4 @@
-cat
-tee
+/cat
+/tee
+/test/runner
+*.o

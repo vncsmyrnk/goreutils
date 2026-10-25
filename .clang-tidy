@@ -1,0 +1,28 @@
+---
+Checks: >
+    modernize-*,
+    clang-analyzer-*
+    -clang-analyzer-security.insecureAPI.*
+    performance-*,
+    readability-*,
+    -readability-identifier-length,
+    bugprone-*
+WarningsAsErrors: ""
+HeaderFileExtensions:
+    - ""
+    - h
+    - hh
+    - hpp
+    - hxx
+ImplementationFileExtensions:
+    - c
+    - cc
+    - cpp
+    - cxx
+HeaderFilterRegex: ".*"
+ExcludeHeaderFilterRegex: ""
+FormatStyle: none
+CheckOptions: {}
+SystemHeaders: false
+...
+

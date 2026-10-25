@@ -4,7 +4,9 @@
 #include <unistd.h>
 #include <string.h>
 
-#define BUF_SIZE 1024
+enum {
+BUF_SIZE = 1024,
+};
 
 void usage(FILE *f, char* arg0) {
     fprintf(f, "usage: %s [OPTIONS]... [FILE]...\n"
@@ -33,7 +35,7 @@ int main(int argc, char **argv) {
         if (strcmp(argv[i], "--help") == 0) {
             usage(stdout, argv[0]);
             exit(EXIT_SUCCESS);
-        } else if (argv[i][0] == '-') {
+        } if (argv[i][0] == '-') {
             usage(stderr, argv[0]);
             exit(EXIT_FAILURE);
         }

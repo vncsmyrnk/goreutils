@@ -4,12 +4,18 @@
 #include <string.h>
 #include <unistd.h>
 
-#define BUF_SIZE 1024
+enum {
+    BUF_SIZE = 1024,
+    OPEN_PERM_DEFAULT = 0644,
+    ARGV_OPEN_PERM = OPEN_PERM_DEFAULT,
+};
 
 void usage(FILE *f, char *arg0) {
-    fprintf(f, "usage: %s [OPTIONS]... [FILE]...\n"
-               "\nOptions:\n"
-               "  --help  display this help message\n", arg0);
+    fprintf(f,
+            "usage: %s [OPTIONS]... [FILE]...\n"
+            "\nOptions:\n"
+            "  --help  display this help message\n",
+            arg0);
 }
 
 int main(int argc, char **argv) {
@@ -23,7 +29,8 @@ int main(int argc, char **argv) {
         if (strcmp(argv[i], "--help") == 0) {
             usage(stdout, argv[0]);
             exit(EXIT_SUCCESS);
-        } else if (argv[i][0] == '-') {
+        }
+        if (argv[i][0] == '-') {
             usage(stderr, argv[0]);
             exit(EXIT_FAILURE);
         }
@@ -37,12 +44,13 @@ int main(int argc, char **argv) {
 
     int fcount = 0;
     for (i = 1; i < argc; i++) {
-        int fd = open(argv[i], O_WRONLY | O_CREAT | O_TRUNC);
+        int fd = open(argv[i], O_WRONLY | O_CREAT | O_TRUNC, ARGV_OPEN_PERM);
         if (fd == -1) {
+            free(fds);
             perror("open");
             exit(EXIT_FAILURE);
         }
-        fds[i-1] = fd;
+        fds[i - 1] = fd;
         fcount++;
     }
 
@@ -57,6 +65,7 @@ int main(int argc, char **argv) {
         printf("%s", buf);
         for (i = 0; i < fcount; i++) {
             if (write(fds[i], buf, strlen(buf)) == -1) {
+                free(fds);
                 perror("write");
                 exit(EXIT_FAILURE);
             }
