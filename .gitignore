@@ -1,2 +1,3 @@
-cat
-tee
+/cat
+/tee
+/test_*

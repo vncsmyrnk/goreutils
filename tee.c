@@ -37,8 +37,9 @@ int main(int argc, char **argv) {
 
     int fcount = 0;
     for (i = 1; i < argc; i++) {
-        int fd = open(argv[i], O_WRONLY | O_CREAT | O_TRUNC);
+        int fd = open(argv[i], O_WRONLY | O_CREAT | O_TRUNC, 0644);
         if (fd == -1) {
+            free(fds);
             perror("open");
             exit(EXIT_FAILURE);
         }
@@ -57,6 +58,7 @@ int main(int argc, char **argv) {
         printf("%s", buf);
         for (i = 0; i < fcount; i++) {
             if (write(fds[i], buf, strlen(buf)) == -1) {
+                free(fds);
                 perror("write");
                 exit(EXIT_FAILURE);
             }
