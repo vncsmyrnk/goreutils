@@ -9,4 +9,6 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - run: sudo apt install valgrind
       - run: make
+      - run: make valgrind
