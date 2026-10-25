@@ -1,5 +1,4 @@
 #include "use_case.h"
-#include <asm-generic/errno-base.h>
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -14,7 +13,8 @@
 #include <unistd.h>
 
 enum {
-    ARGV_READ_INITIAL_CAP = 128,
+    UC_ARGV_READ_INITIAL_CAP = 128,
+    UC_WORKING_DIR_PERM = 0755,
 };
 
 int uc_dup_input(UseCase *uc) {
@@ -74,7 +74,7 @@ char **uc_argv(UseCase *uc) {
         return argv;
     }
 
-    size_t capacity = ARGV_READ_INITIAL_CAP;
+    size_t capacity = UC_ARGV_READ_INITIAL_CAP;
     size_t total_read = 0;
     char *argv_raw = malloc(capacity);
     if (!argv_raw) {
@@ -136,6 +136,19 @@ char *uc_exec_path(char *name) {
     strncat(tmp_path, tmp_path_suffix, strlen(tmp_path_suffix));
 
     if (!mkdtemp(tmp_path)) {
+        return nullptr;
+    }
+
+    char *new_tmp_path = reallocarray(
+        tmp_path, strlen(tmp_path) + strlen("/working-dir") + 1, sizeof(char));
+    if (!new_tmp_path) {
+        free(tmp_path);
+        return nullptr;
+    }
+    tmp_path = new_tmp_path;
+    strncat(tmp_path, "/working-dir", strlen("/working-dir") + 1);
+
+    if (mkdir(tmp_path, UC_WORKING_DIR_PERM) == -1) {
         return nullptr;
     }
     return tmp_path;
