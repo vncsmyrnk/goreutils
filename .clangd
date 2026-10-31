@@ -1,0 +1,9 @@
+If:
+    Language: c
+CompileFlags:
+    Add: [-std=c23, -D_GNU_SOURCE, -I./test]
+---
+If:
+    Language: cpp
+CompileFlags:
+    Remove: [-std=c23]
