@@ -23,8 +23,8 @@ $(test_PROGRAM): $(test_OBJS)
 check: CFLAGS += -g
 check: $(test_PROGRAM) $(PROGRAMS)
 	@for t in $(PROGRAMS); do \
-		echo "TEST ./$(test_PROGRAM)" "test/use-cases/$$t" "$$t"; \
-		"./$(test_PROGRAM)" "test/use-cases/$$t" "$$t" --skip read-files; \
+		echo "== ./$(test_PROGRAM)" "test/use-cases/$$t" "$$t"; \
+		"./$(test_PROGRAM)" "test/use-cases/$$t" "$$t"; \
 		result=$$?; \
 		if [ $$result -ne 0 ]; then \
 			fail=$$result; \
@@ -44,8 +44,8 @@ lint:
 valgrind: CFLAGS += -g
 valgrind: $(test_PROGRAM) $(PROGRAMS)
 	@for t in $(PROGRAMS); do \
-		echo "TEST ./$(test_PROGRAM)" "test/use-cases/$$t" "$$t"; \
-		$(VALGRIND) $(VALGRIND_FLAGS) "./$(test_PROGRAM)" "test/use-cases/$$t" "$$t" --skip read-files; \
+		echo "== ./$(test_PROGRAM)" "test/use-cases/$$t" "$$t"; \
+		$(VALGRIND) $(VALGRIND_FLAGS) "./$(test_PROGRAM)" "test/use-cases/$$t" "$$t"; \
 		result=$$?; \
 		if [ $$result -ne 0 ]; then \
 			fail=$$result; \

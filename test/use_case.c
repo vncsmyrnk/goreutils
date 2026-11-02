@@ -1,4 +1,5 @@
 #include "use_case.h"
+#include <asm-generic/errno-base.h>
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -14,7 +15,9 @@
 
 enum {
     UC_ARGV_READ_INITIAL_CAP = 128,
+    UC_COPY_WORKING_DIR_FILES_BUF_SIZE = 1024,
     UC_WORKING_DIR_PERM = 0755,
+    UC_WORKING_DIR_DATA_PERM = 0644,
 };
 
 int uc_dup_input(UseCase *uc) {
@@ -139,19 +142,23 @@ char *uc_exec_path(char *name) {
         return nullptr;
     }
 
-    char *new_tmp_path = reallocarray(
-        tmp_path, strlen(tmp_path) + strlen("/working-dir") + 1, sizeof(char));
-    if (!new_tmp_path) {
-        free(tmp_path);
-        return nullptr;
-    }
-    tmp_path = new_tmp_path;
-    strncat(tmp_path, "/working-dir", strlen("/working-dir") + 1);
-
-    if (mkdir(tmp_path, UC_WORKING_DIR_PERM) == -1) {
-        return nullptr;
-    }
     return tmp_path;
+}
+
+char *uc_exec_path_working_dir(char *base_path) {
+    char *working_dir_path =
+        calloc(strlen(base_path) + strlen("/working-dir") + 1, sizeof(char));
+    if (!working_dir_path) {
+        return nullptr;
+    }
+    strncpy(working_dir_path, base_path, strlen(base_path));
+    strncat(working_dir_path, "/working-dir", strlen("/working-dir") + 1);
+
+    if (mkdir(working_dir_path, UC_WORKING_DIR_PERM) == -1) {
+        free(working_dir_path);
+        return nullptr;
+    }
+    return working_dir_path;
 }
 
 char *uc_src_path(char *name, char *base_path) {
@@ -169,30 +176,148 @@ char *uc_src_path(char *name, char *base_path) {
     return path;
 }
 
+// TODO: support directories on working dir
+static int uc_build_working_dir(UseCase *uc) {
+    if (!uc->path || !uc->exec_path_working_dir) {
+        return -1;
+    }
+
+    char *working_dir_path = calloc(
+        strlen(uc->path) + strlen("/working-dir") + 1, sizeof(*uc->path));
+    if (!working_dir_path) {
+        return -1;
+    }
+    strncpy(working_dir_path, uc->path, strlen(uc->path));
+    strcat(working_dir_path, "/working-dir");
+
+    DIR *dp = opendir(working_dir_path);
+    if (!dp && errno != ENOENT) {
+        free(working_dir_path);
+        return -1;
+    }
+    if (!dp) {
+        free(working_dir_path);
+        return 0;
+    }
+
+    struct dirent *ep;
+    while ((ep = readdir(dp))) {
+        if (strcmp(ep->d_name, ".") == 0 || strcmp(ep->d_name, "..") == 0) {
+            continue;
+        }
+
+        char *p1 = calloc(strlen(working_dir_path) + strlen(ep->d_name) + 2,
+                          sizeof(char));
+        if (!p1) {
+            closedir(dp);
+            free(working_dir_path);
+            return -1;
+        }
+        strncpy(p1, working_dir_path, strlen(working_dir_path) + 1);
+        strncat(p1, "/", 2);
+        strncat(p1, ep->d_name, strlen(ep->d_name) + 1);
+
+        int working_dir_fd = open(p1, O_RDONLY);
+        if (working_dir_fd == -1 && errno != ENOENT) {
+            closedir(dp);
+            free(p1);
+            free(working_dir_path);
+            return -1;
+        }
+
+        char *p2 =
+            calloc(strlen(uc->exec_path_working_dir) + strlen(ep->d_name) + 2,
+                   sizeof(char));
+        if (!p2) {
+            closedir(dp);
+            close(working_dir_fd);
+            free(p1);
+            free(working_dir_path);
+            return -1;
+        }
+        strncpy(p2, uc->exec_path_working_dir,
+                strlen(uc->exec_path_working_dir) + 1);
+        strncat(p2, "/", 2);
+        strncat(p2, ep->d_name, strlen(ep->d_name) + 1);
+
+        int exec_working_dir_fd =
+            open(p2, O_RDWR | O_CREAT | O_TRUNC, UC_WORKING_DIR_DATA_PERM);
+        if (exec_working_dir_fd == -1 && errno != ENOENT) {
+            closedir(dp);
+            close(working_dir_fd);
+            close(exec_working_dir_fd);
+            free(p1);
+            free(working_dir_path);
+            free(p2);
+            return -1;
+        }
+
+        char buf[UC_COPY_WORKING_DIR_FILES_BUF_SIZE];
+        ssize_t b;
+        while ((b = read(working_dir_fd, buf, sizeof(buf)))) {
+            if (b < 1) {
+                perror("read");
+                return -1;
+            }
+            ssize_t written = write(exec_working_dir_fd, buf, b);
+            if (written != b || written < 1) {
+                perror("write");
+                return -1;
+            }
+        }
+
+        close(working_dir_fd);
+        close(exec_working_dir_fd);
+        free(p2);
+        free(p1);
+    }
+    closedir(dp);
+
+    free(working_dir_path);
+    return 0;
+}
+
 UseCase *uc_init(char *name, char *base_path) {
-    char *exec_path = uc_exec_path(name);
-    if (exec_path == nullptr) {
-        return nullptr;
-    }
-
-    char *uc_name = calloc(strlen(name), sizeof(name));
-    if (strncpy(uc_name, name, strlen(name)) == nullptr) {
-        free(exec_path);
-        return nullptr;
-    }
-
-    char *src_path = uc_src_path(name, base_path);
-    if (src_path == nullptr) {
-        free(uc_name);
-        free(exec_path);
-        return nullptr;
-    }
-
     UseCase *uc = malloc(sizeof(UseCase));
-    if (uc == nullptr) {
+    if (!uc) {
         return nullptr;
     }
-    *uc = (UseCase){.name = uc_name, .exec_path = exec_path, .path = src_path};
+    *uc = (UseCase){};
+
+    uc->exec_path = uc_exec_path(name);
+    if (!uc->exec_path) {
+        uc_free(uc);
+        free(uc);
+        return nullptr;
+    }
+
+    uc->exec_path_working_dir = uc_exec_path_working_dir(uc->exec_path);
+    if (!uc->exec_path_working_dir) {
+        uc_free(uc);
+        free(uc);
+        return nullptr;
+    }
+
+    uc->name = calloc(strlen(name), sizeof(name));
+    if (strncpy(uc->name, name, strlen(name)) == nullptr) {
+        uc_free(uc);
+        free(uc);
+        return nullptr;
+    }
+
+    uc->path = uc_src_path(name, base_path);
+    if (!uc->path) {
+        uc_free(uc);
+        free(uc);
+        return nullptr;
+    }
+
+    if (uc_build_working_dir(uc) == -1) {
+        uc_free(uc);
+        free(uc);
+        return nullptr;
+    }
+
     return uc;
 }
 
@@ -209,6 +334,10 @@ UseCase **ucs_read(char *path_to_use_cases) {
         if (strcmp(ep->d_name, ".") == 0 || strcmp(ep->d_name, "..") == 0) {
             continue;
         }
+        UseCase *uc = uc_init(ep->d_name, path_to_use_cases);
+        if (!uc) {
+            continue;
+        }
         UseCase **temp =
             (UseCase **)reallocarray((void *)ucs, i + 2, sizeof(*ucs));
         if (temp == nullptr) {
@@ -217,7 +346,7 @@ UseCase **ucs_read(char *path_to_use_cases) {
             return nullptr;
         }
         ucs = temp;
-        ucs[i++] = uc_init(ep->d_name, path_to_use_cases);
+        ucs[i++] = uc;
     }
     closedir(dp);
     ucs[i] = nullptr;
@@ -284,17 +413,20 @@ AssertionResult *uc_assert_exit_status(UseCase *uc, Result r) {
 }
 
 void uc_free(UseCase *uc) {
-    if (uc == nullptr) {
+    if (!uc) {
         return;
     }
-    if (uc->path != nullptr) {
+    if (uc->path) {
         free(uc->path);
     }
-    if (uc->name != nullptr) {
+    if (uc->name) {
         free(uc->name);
     }
-    if (uc->exec_path != nullptr) {
+    if (uc->exec_path) {
         free(uc->exec_path);
+    }
+    if (uc->exec_path_working_dir) {
+        free(uc->exec_path_working_dir);
     }
 }
 

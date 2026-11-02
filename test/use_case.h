@@ -7,6 +7,7 @@
 typedef struct {
     char *path;
     char *exec_path;
+    char *exec_path_working_dir;
     char *name;
 } UseCase;
 

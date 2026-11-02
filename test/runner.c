@@ -32,7 +32,9 @@ int main(int argc, char **argv) {
             skipped_testsv[skipped_testsc++] = argv[i + 1];
         }
     }
-    skipped_testsv[skipped_testsc] = nullptr;
+    if (skipped_testsc > 0) {
+        skipped_testsv[skipped_testsc] = nullptr;
+    }
 
     char *p_bin_fp = realpath(p_bin, nullptr);
     if (p_bin_fp == NULL) {
@@ -57,6 +59,7 @@ int main(int argc, char **argv) {
                 goto _continue;
             }
         }
+        printf("TEST %s\n", uc->name);
 
         pid_t pid = fork();
         switch (pid) {
@@ -76,7 +79,7 @@ int main(int argc, char **argv) {
                 return EXIT_FAILURE;
             }
 
-            if (chdir(uc->exec_path) == -1) {
+            if (chdir(uc->exec_path_working_dir) == -1) {
                 perror("chdir");
                 return EXIT_FAILURE;
             }
