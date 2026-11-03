@@ -17,7 +17,7 @@ enum {
     UC_ARGV_READ_INITIAL_CAP = 128,
     UC_COPY_WORKING_DIR_FILES_BUF_SIZE = 1024,
     UC_WORKING_DIR_PERM = 0755,
-    UC_WORKING_DIR_DATA_PERM = 0644,
+    UC_EXEC_DIR_PERM = 0644,
 };
 
 int uc_dup_input(UseCase *uc) {
@@ -45,6 +45,34 @@ int uc_dup_input(UseCase *uc) {
         return -1;
     }
     close(fd);
+
+    return 0;
+}
+
+int uc_dup_stdout(UseCase *uc) {
+    if (!uc || !uc->exec_path) {
+        return -1;
+    }
+
+    char *stdout_path =
+        calloc(strlen(uc->exec_path) + strlen("/stdout") + 1, sizeof(char));
+    if (!stdout_path) {
+        return -1;
+    }
+    strncpy(stdout_path, uc->exec_path, strlen(uc->exec_path) + 1);
+    strncat(stdout_path, "/stdout", strlen("/stdout") + 1);
+
+    int fd = open(stdout_path, O_RDWR | O_CREAT | O_TRUNC, UC_EXEC_DIR_PERM);
+    free(stdout_path);
+    if (fd == -1) {
+        return -1;
+    }
+
+    int rc = dup2(fd, STDOUT_FILENO);
+    close(fd);
+    if (rc == -1) {
+        return -1;
+    }
 
     return 0;
 }
@@ -241,7 +269,7 @@ static int uc_build_working_dir(UseCase *uc) {
         strncat(p2, ep->d_name, strlen(ep->d_name) + 1);
 
         int exec_working_dir_fd =
-            open(p2, O_RDWR | O_CREAT | O_TRUNC, UC_WORKING_DIR_DATA_PERM);
+            open(p2, O_RDWR | O_CREAT | O_TRUNC, UC_EXEC_DIR_PERM);
         if (exec_working_dir_fd == -1 && errno != ENOENT) {
             closedir(dp);
             close(working_dir_fd);

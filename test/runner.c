@@ -59,7 +59,6 @@ int main(int argc, char **argv) {
                 goto _continue;
             }
         }
-        printf("TEST %s\n", uc->name);
 
         pid_t pid = fork();
         switch (pid) {
@@ -69,7 +68,12 @@ int main(int argc, char **argv) {
             break;
         case 0:
             if (uc_dup_input(uc) == -1) {
-                perror("uc_inputfd");
+                perror("stdin dup");
+                return EXIT_FAILURE;
+            }
+
+            if (uc_dup_stdout(uc) == -1) {
+                perror("stdout dup");
                 return EXIT_FAILURE;
             }
 
