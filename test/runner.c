@@ -77,6 +77,11 @@ int main(int argc, char **argv) {
                 return EXIT_FAILURE;
             }
 
+            if (uc_dup_stderr(uc) == -1) {
+                perror("stderr dup");
+                return EXIT_FAILURE;
+            }
+
             char **exec_argv = uc_argv(uc);
             if (exec_argv == nullptr) {
                 perror("argv");

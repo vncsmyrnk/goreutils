@@ -30,51 +30,62 @@ int uc_dup_input(UseCase *uc) {
     strcat(input_path, "/input");
 
     int fd = open(input_path, O_RDONLY);
+    free(input_path);
     if (fd == -1 && errno == ENOENT) {
-        free(input_path);
         return 0;
     }
-    free(input_path);
     if (fd == -1) {
         return -1;
     }
 
     int new_input_fd = dup2(fd, STDIN_FILENO);
+    close(fd);
     if (new_input_fd == -1) {
-        close(fd);
         return -1;
     }
-    close(fd);
 
     return 0;
 }
 
-int uc_dup_stdout(UseCase *uc) {
+static int uc_dup_exec_path_fd(UseCase *uc, int oldfd,
+                               const char *exec_path_file_name) {
     if (!uc || !uc->exec_path) {
         return -1;
     }
 
-    char *stdout_path =
-        calloc(strlen(uc->exec_path) + strlen("/stdout") + 1, sizeof(char));
+    char *stdout_path = calloc(strlen(uc->exec_path) + strlen("/") +
+                                   strlen(exec_path_file_name) + 1,
+                               sizeof(char));
     if (!stdout_path) {
         return -1;
     }
-    strncpy(stdout_path, uc->exec_path, strlen(uc->exec_path) + 1);
-    strncat(stdout_path, "/stdout", strlen("/stdout") + 1);
 
-    int fd = open(stdout_path, O_RDWR | O_CREAT | O_TRUNC, UC_EXEC_DIR_PERM);
+    strncpy(stdout_path, uc->exec_path, strlen(uc->exec_path) + 1);
+    strncat(stdout_path, "/", 2);
+    strncat(stdout_path, exec_path_file_name, strlen(exec_path_file_name) + 1);
+
+    int newfd = open(stdout_path, O_RDWR | O_CREAT | O_TRUNC, UC_EXEC_DIR_PERM);
     free(stdout_path);
-    if (fd == -1) {
+    if (newfd == -1) {
         return -1;
     }
 
-    int rc = dup2(fd, STDOUT_FILENO);
-    close(fd);
+    int rc = dup2(newfd, oldfd);
+    close(newfd);
     if (rc == -1) {
         return -1;
     }
 
+    close(newfd);
     return 0;
+}
+
+int uc_dup_stdout(UseCase *uc) {
+    return uc_dup_exec_path_fd(uc, STDOUT_FILENO, "stdout");
+}
+
+int uc_dup_stderr(UseCase *uc) {
+    return uc_dup_exec_path_fd(uc, STDERR_FILENO, "stderr");
 }
 
 char **uc_argv(UseCase *uc) {
