@@ -409,43 +409,41 @@ AssertionResult *uc_assert_exit_status(UseCase *uc, Result r) {
     }
     free(expected_exit_status_path);
 
-    char buf[3];
-    ssize_t content = read(fd, buf, sizeof(buf));
+    size_t expected_size = 4;
+    char *expected = calloc(4, expected_size);
+    ssize_t content = read(fd, expected, expected_size - 1);
     if (content < 1) {
         close(fd);
         return nullptr;
     }
-    buf[content] = '\0';
+    expected[content - 1] = '\0';
     close(fd);
+
+    char *actual = nullptr;
+    bool pass = r.exit_code == atoi(expected);
+    if (!pass) {
+        int n = snprintf(actual, 0, "%d", r.exit_code);
+        if (n < 0) {
+            free(expected);
+            return nullptr;
+        }
+        actual = calloc(++n, sizeof(char));
+        if (!actual) {
+            free(expected);
+            return nullptr;
+        }
+        n = snprintf(actual, n, "%d", r.exit_code);
+        if (n < 0) {
+            free(actual);
+            free(expected);
+            return nullptr;
+        }
+    }
 
     AssertionResult *as = calloc(1, sizeof(AssertionResult));
     if (!as) {
         return nullptr;
     }
-
-    char *expected = nullptr;
-    bool pass = r.exit_code == atoi(buf);
-    if (!pass) {
-        int n = snprintf(expected, 0, "%d", r.exit_code);
-        if (n < 0) {
-            return nullptr;
-        }
-        expected = calloc(++n, sizeof(char));
-        if (!expected) {
-            return nullptr;
-        }
-        n = snprintf(expected, n, "%d", r.exit_code);
-        if (n < 0) {
-            free(expected);
-            return nullptr;
-        }
-    }
-    char *actual = calloc(strlen(buf), sizeof(char));
-    if (!actual) {
-        free(expected);
-        return nullptr;
-    }
-    strncpy(actual, buf, strlen(buf));
     *as =
         (AssertionResult){.pass = pass, .expected = expected, .actual = actual};
     return as;

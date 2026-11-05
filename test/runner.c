@@ -99,12 +99,12 @@ int main(int argc, char **argv) {
             break;
         default:
             int status;
-            if (waitpid(pid, &status, 0) < 0) {
+            if (waitpid(pid, &status, WUNTRACED) < 0) {
                 perror("waitpid");
                 return EXIT_FAILURE;
             }
 
-            Result r = result_init(status);
+            Result r = result_init(WEXITSTATUS(status));
             AssertionResult *as = uc_assert_exit_status(uc, r);
             if (!as) {
                 perror("assert");
@@ -114,8 +114,8 @@ int main(int argc, char **argv) {
             if (as->pass) {
                 printf("PASS %s\n", uc->name);
             } else {
-                printf("FAIL %s; expected=%s actual=%s", uc->name, as->expected,
-                       as->actual);
+                printf("FAIL %s; expected=%s actual=%s\n", uc->name,
+                       as->expected, as->actual);
                 all_tests_passed = false;
             }
             as_free(as);
