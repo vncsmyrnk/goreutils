@@ -17,11 +17,18 @@ typedef struct {
     bool pass;
 } AssertionResult;
 
+typedef struct {
+    char **argv;
+    int argc;
+} UseCaseArgv;
+
+constexpr UseCaseArgv UseCaseArgvEmpty = {.argv = nullptr, .argc = 0};
+
 UseCase **ucs_read(char *path_to_use_cases);
 int uc_dup_input(UseCase *uc);
 int uc_dup_stdout(UseCase *uc);
 int uc_dup_stderr(UseCase *uc);
-char **uc_argv(UseCase *uc);
+UseCaseArgv *uc_argv(UseCase *uc);
 void uc_free(UseCase *uc);
 AssertionResult *uc_assert_exit_status(UseCase *uc, Result r);
 void as_free(AssertionResult *as);

@@ -88,7 +88,7 @@ int uc_dup_stderr(UseCase *uc) {
     return uc_dup_exec_path_fd(uc, STDERR_FILENO, "stderr");
 }
 
-char **uc_argv(UseCase *uc) {
+UseCaseArgv *uc_argv(UseCase *uc) {
     char *argv_path =
         calloc(strlen(uc->path) + strlen("/argv") + 1, sizeof(*uc->path));
     if (argv_path == NULL) {
@@ -103,17 +103,22 @@ char **uc_argv(UseCase *uc) {
         return nullptr;
     }
 
-    char **argv = (char **)calloc(2, sizeof(*argv));
-    if (!argv) {
+    UseCaseArgv *a = malloc(sizeof(UseCaseArgv));
+    if (!a) {
+        return nullptr;
+    }
+
+    a->argc = 0;
+    a->argv = (char **)calloc(1, sizeof(char *));
+    if (!a->argv) {
         close(fd);
         return nullptr;
     }
-    argv[0] = ""; // first argument is the program's name
-    argv[1] = nullptr;
 
+    a->argv[a->argc] = nullptr;
     if (fd == -1) {
         errno = ENOENT;
-        return argv;
+        return a;
     }
 
     size_t capacity = UC_ARGV_READ_INITIAL_CAP;
@@ -141,27 +146,25 @@ char **uc_argv(UseCase *uc) {
     close(fd);
     if (b == -1) {
         free(argv_raw);
-        free((void *)argv);
         return nullptr;
     }
     argv_raw[total_read] = '\0';
 
-    int argc = 1;
     char *tok = strtok(argv_raw, "\n");
     while (tok) {
         char **new_argv =
-            (char **)reallocarray((void *)argv, argc + 2, sizeof(*argv));
+            (char **)reallocarray((void *)a->argv, a->argc + 2, sizeof(char *));
         if (!new_argv) {
             free(argv_raw);
             return nullptr;
         }
-        argv = new_argv;
-        argv[argc++] = tok;
+        a->argv = new_argv;
+        a->argv[a->argc++] = tok;
         tok = strtok(nullptr, "\n");
     }
-    argv[argc] = nullptr;
+    a->argv[a->argc] = nullptr;
 
-    return argv;
+    return a;
 }
 
 char *uc_exec_path(char *name) {
