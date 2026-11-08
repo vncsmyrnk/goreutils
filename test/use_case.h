@@ -5,10 +5,21 @@
 #include <stdlib.h>
 
 typedef struct {
+    bool no_stdin;
+    bool no_stdout;
+    bool no_stderr;
+    bool skip;
+} UseCaseOptions;
+
+constexpr UseCaseOptions UseCaseOptionsDefault = {
+    .no_stdin = false, .no_stdout = false, .no_stderr = false, .skip = false};
+
+typedef struct {
     char *path;
     char *exec_path;
     char *exec_path_working_dir;
     char *name;
+    UseCaseOptions *opts;
 } UseCase;
 
 typedef struct {

@@ -19,14 +19,12 @@ typedef struct SkippedTest {
 } SkippedTest;
 
 typedef struct {
-    char **skipped_tests;
-    SkippedTest **skipped;
     bool no_valgrind;
     char **argv;
     int argc;
 } Flags;
 
-const Flags default_flags = {.no_valgrind = false, .skipped_tests = nullptr};
+const Flags default_flags = {.no_valgrind = false};
 
 const Flags *flags_parse(int argc, const char *argv[]) {
     Flags *f = malloc(sizeof(Flags));
@@ -40,53 +38,11 @@ const Flags *flags_parse(int argc, const char *argv[]) {
         return nullptr;
     }
 
-    f->skipped = (SkippedTest **)malloc(sizeof(SkippedTest *));
-    if (!f->skipped) {
-        return nullptr;
-    }
-
-    int skipped_tests_count = 0;
-    f->skipped[skipped_tests_count] = nullptr;
     f->argc = 0;
     for (int i = 0; i < argc; i++) {
         if (argv[i][0] != '-') {
             f->argv[f->argc++] = strdup(argv[i]);
             f->argv[f->argc] = nullptr;
-            continue;
-        }
-
-        if (strcmp(argv[i], "--skip") == 0 && i + 1 < argc) {
-            SkippedTest **new_skipped = (SkippedTest **)realloc(
-                (void *)f->skipped, 2 * sizeof(SkippedTest *));
-            if (!new_skipped) {
-                return nullptr;
-            }
-            f->skipped = new_skipped;
-
-            char *argument = strdup(argv[i + 1]);
-            char *basename_bin = strtok(argument, ":");
-            if (!basename_bin) {
-                free(argument);
-                continue;
-            }
-            char *name = strtok(nullptr, ":");
-            if (!name) {
-                free(argument);
-                continue;
-            }
-
-            SkippedTest *t = malloc(sizeof(SkippedTest));
-            if (!t) {
-                free(argument);
-                return nullptr;
-            }
-            *t = (SkippedTest){.basename_bin = strdup(basename_bin),
-                               .name = strdup(name)};
-            free(argument);
-
-            f->skipped[skipped_tests_count++] = t;
-            f->skipped[skipped_tests_count] = nullptr;
-            i++;
             continue;
         }
         if (strcmp(argv[i], "--no-valgrind") == 0) {
@@ -98,19 +54,6 @@ const Flags *flags_parse(int argc, const char *argv[]) {
 }
 
 void flags_free(const Flags *f) {
-    for (SkippedTest **_s = f->skipped; *_s != nullptr; _s++) {
-        SkippedTest *s = *_s;
-        if (s->basename_bin) {
-            free((void *)s->basename_bin);
-        }
-        if (s->name) {
-            free((void *)s->name);
-        }
-        free((void *)s);
-    }
-    if (f->skipped) {
-        free((void *)f->skipped);
-    }
     for (char **a = f->argv; *a != nullptr; a++) {
         free(*a);
     }
@@ -150,12 +93,9 @@ int main(int argc, const char **argv) {
     UseCase **_ucs = ucs;
     for (_ucs = ucs; *_ucs != nullptr; _ucs++) {
         UseCase *uc = *_ucs;
-        for (SkippedTest **s = flags->skipped; s != nullptr && *s != nullptr;
-             s++) {
-            if (strcmp(uc->name, (*s)->name) == 0) {
-                printf("SKIP %s\n", uc->name);
-                goto _continue;
-            }
+        if (uc->opts->skip) {
+            printf("SKIP %s; %s\n", p_bin, uc->name);
+            goto _continue;
         }
 
         pid_t pid = fork();

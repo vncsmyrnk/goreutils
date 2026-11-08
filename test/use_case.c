@@ -1,5 +1,6 @@
 #include "use_case.h"
 #include <asm-generic/errno-base.h>
+#include <bits/types/error_t.h>
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -21,6 +22,9 @@ enum {
 };
 
 int uc_dup_input(UseCase *uc) {
+    if (uc->opts->no_stdin) {
+        return close(STDIN_FILENO);
+    }
     char *input_path =
         calloc(strlen(uc->path) + strlen("/input") + 1, sizeof(*uc->path));
     if (input_path == NULL) {
@@ -32,7 +36,6 @@ int uc_dup_input(UseCase *uc) {
     int fd = open(input_path, O_RDONLY);
     free(input_path);
     if (fd == -1 && errno == ENOENT) {
-        close(STDIN_FILENO);
         return 0;
     }
     if (fd == -1) {
@@ -82,10 +85,16 @@ static int uc_dup_exec_path_fd(UseCase *uc, int oldfd,
 }
 
 int uc_dup_stdout(UseCase *uc) {
+    if (uc->opts->no_stdout) {
+        return close(STDOUT_FILENO);
+    }
     return uc_dup_exec_path_fd(uc, STDOUT_FILENO, "stdout");
 }
 
 int uc_dup_stderr(UseCase *uc) {
+    if (uc->opts->no_stderr) {
+        return close(STDERR_FILENO);
+    }
     return uc_dup_exec_path_fd(uc, STDERR_FILENO, "stderr");
 }
 
@@ -320,6 +329,98 @@ static int uc_build_working_dir(UseCase *uc) {
     return 0;
 }
 
+UseCaseOptions *uc_opts(UseCase *uc) {
+    char *options_fp =
+        malloc((strlen(uc->path) + strlen("/options") + 1) * sizeof(char));
+    if (!options_fp) {
+        return nullptr;
+    }
+    strncpy(options_fp, uc->path, strlen(uc->path) + 1);
+    strncat(options_fp, "/options", strlen("/options") + 1);
+
+    UseCaseOptions *opts = malloc(sizeof(UseCaseOptions));
+    if (!opts) {
+        free(options_fp);
+        return nullptr;
+    }
+    memcpy(opts, &UseCaseOptionsDefault, sizeof(UseCaseOptionsDefault));
+
+    int fd = open(options_fp, O_RDONLY);
+    error_t e = errno;
+    free(options_fp);
+    if (fd == -1 && errno != ENOENT) {
+        errno = e;
+        free(opts);
+        return nullptr;
+    }
+    if (fd == -1) {
+        errno = ENOENT;
+        return opts;
+    }
+
+    ssize_t buf_cap = 128;
+    char *buf = calloc(buf_cap, sizeof(char));
+    if (!buf) {
+        free(opts);
+        return nullptr;
+    }
+    ssize_t total_read = 0;
+    ssize_t b = 0;
+    while ((b = read(fd, buf + total_read, buf_cap - total_read - 1))) {
+        total_read += b;
+        if (total_read < buf_cap - 1) {
+            continue;
+        }
+        buf_cap *= 2;
+        char *new_buf = realloc(buf, buf_cap * sizeof(char));
+        if (!new_buf) {
+            free(buf);
+            free(opts);
+            return nullptr;
+        }
+        buf = new_buf;
+    }
+
+    char *c = strtok(buf, "\n");
+    while (c) {
+        char *opt_name = strsep(&c, "=");
+        if (!opt_name) {
+            goto _continue;
+        }
+        char *opt_value = strsep(&c, "=");
+        if (!opt_value) {
+            goto _continue;
+        }
+
+        // TODO: improve this
+        if (strcmp(opt_name, "no-stdin") == 0) {
+            if (strcmp(opt_value, "true") == 0) {
+                opts->no_stdin = true;
+            }
+        }
+        if (strcmp(opt_name, "no-stdout") == 0) {
+            if (strcmp(opt_value, "true") == 0) {
+                opts->no_stdout = true;
+            }
+        }
+        if (strcmp(opt_name, "no-stderr") == 0) {
+            if (strcmp(opt_value, "true") == 0) {
+                opts->no_stderr = true;
+            }
+        }
+        if (strcmp(opt_name, "skip") == 0) {
+            if (strcmp(opt_value, "true") == 0) {
+                opts->skip = true;
+            }
+        }
+    _continue:
+        c = strtok(nullptr, "\n");
+    }
+
+    free(buf);
+    return opts;
+}
+
 UseCase *uc_init(const char *name, const char *base_path) {
     UseCase *uc = malloc(sizeof(UseCase));
     if (!uc) {
@@ -350,6 +451,13 @@ UseCase *uc_init(const char *name, const char *base_path) {
 
     uc->path = uc_src_path(name, base_path);
     if (!uc->path) {
+        uc_free(uc);
+        free(uc);
+        return nullptr;
+    }
+
+    uc->opts = uc_opts(uc);
+    if (!uc->opts) {
         uc_free(uc);
         free(uc);
         return nullptr;
@@ -468,6 +576,9 @@ void uc_free(UseCase *uc) {
     }
     if (uc->exec_path_working_dir) {
         free(uc->exec_path_working_dir);
+    }
+    if (uc->opts) {
+        free((void *)uc->opts);
     }
 }
 
