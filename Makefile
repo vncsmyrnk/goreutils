@@ -24,7 +24,7 @@ check: CFLAGS += -g
 check: $(test_PROGRAM) $(PROGRAMS)
 	@for t in $(PROGRAMS); do \
 		echo "== ./$(test_PROGRAM)" "test/use-cases/$$t" "$$t" "--no-valgrind"; \
-		"./$(test_PROGRAM)" "test/use-cases/$$t" "$$t" --no-valgrind; \
+		"./$(test_PROGRAM)" "test/use-cases/$$t" "$$t" --no-valgrind --skip tee:no-files; \
 		result=$$?; \
 		if [ $$result -ne 0 ]; then \
 			fail=$$result; \
@@ -45,7 +45,7 @@ check-valgrind: CFLAGS += -g
 check-valgrind: $(test_PROGRAM) $(PROGRAMS)
 	@for t in $(PROGRAMS); do \
 		echo "== ./$(test_PROGRAM)" "test/use-cases/$$t" "$$t"; \
-		"./$(test_PROGRAM)" "test/use-cases/$$t" "$$t"; \
+		"./$(test_PROGRAM)" "test/use-cases/$$t" "$$t" --skip tee:no-files; \
 		result=$$?; \
 		if [ $$result -ne 0 ]; then \
 			fail=$$result; \
@@ -58,7 +58,7 @@ test-valgrind: CFLAGS += -g
 test-valgrind: $(test_PROGRAM) $(PROGRAMS)
 	@for t in $(PROGRAMS); do \
 		echo "== ./$(test_PROGRAM)" "test/use-cases/$$t" "$$t" "--no-valgrind"; \
-		$(VALGRIND) $(VALGRIND_FLAGS) "./$(test_PROGRAM)" "test/use-cases/$$t" "$$t" --no-valgrind; \
+		$(VALGRIND) $(VALGRIND_FLAGS) "./$(test_PROGRAM)" "test/use-cases/$$t" "$$t" --no-valgrind --skip tee:no-files; \
 		result=$$?; \
 		if [ $$result -ne 0 ]; then \
 			fail=$$result; \

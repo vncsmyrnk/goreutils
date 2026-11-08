@@ -168,7 +168,7 @@ UseCaseArgv *uc_argv(UseCase *uc) {
     return a;
 }
 
-char *uc_exec_path(char *name) {
+char *uc_exec_path(const char *name) {
     if (!name) {
         return nullptr;
     }
@@ -188,7 +188,7 @@ char *uc_exec_path(char *name) {
     return tmp_path;
 }
 
-char *uc_exec_path_working_dir(char *base_path) {
+char *uc_exec_path_working_dir(const char *base_path) {
     char *working_dir_path =
         calloc(strlen(base_path) + strlen("/working-dir") + 1, sizeof(char));
     if (!working_dir_path) {
@@ -204,7 +204,7 @@ char *uc_exec_path_working_dir(char *base_path) {
     return working_dir_path;
 }
 
-char *uc_src_path(char *name, char *base_path) {
+char *uc_src_path(const char *name, const char *base_path) {
     if (name == nullptr) {
         return nullptr;
     }
@@ -320,7 +320,7 @@ static int uc_build_working_dir(UseCase *uc) {
     return 0;
 }
 
-UseCase *uc_init(char *name, char *base_path) {
+UseCase *uc_init(const char *name, const char *base_path) {
     UseCase *uc = malloc(sizeof(UseCase));
     if (!uc) {
         return nullptr;
@@ -364,7 +364,7 @@ UseCase *uc_init(char *name, char *base_path) {
     return uc;
 }
 
-UseCase **ucs_read(char *path_to_use_cases) {
+UseCase **ucs_read(const char *path_to_use_cases) {
     DIR *dp = opendir(path_to_use_cases);
     if (dp == nullptr) {
         return nullptr;

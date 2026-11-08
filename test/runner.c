@@ -13,51 +13,125 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+typedef struct SkippedTest {
+    const char *basename_bin;
+    const char *name;
+} SkippedTest;
+
 typedef struct {
     char **skipped_tests;
+    SkippedTest **skipped;
     bool no_valgrind;
+    char **argv;
+    int argc;
 } Flags;
 
 const Flags default_flags = {.no_valgrind = false, .skipped_tests = nullptr};
 
-int main(int argc, char **argv) {
-    if (argc < 3) {
-        return EXIT_FAILURE;
+const Flags *flags_parse(int argc, const char *argv[]) {
+    Flags *f = malloc(sizeof(Flags));
+    if (!f) {
+        return nullptr;
     }
-    char *p_uc = argv[1];
-    char *p_bin = argv[2];
+    memcpy(f, &default_flags, sizeof(Flags));
 
-    Flags *_flags = malloc(sizeof(Flags));
-    memcpy(_flags, &default_flags, sizeof(Flags));
+    f->argv = (char **)malloc((argc + 1) * sizeof(char *));
+    if (!f->argv) {
+        return nullptr;
+    }
 
-    _flags->skipped_tests = (char **)malloc(sizeof(char *));
-    if (!_flags->skipped_tests) {
-        perror("malloc");
-        return EXIT_FAILURE;
+    f->skipped = (SkippedTest **)malloc(sizeof(SkippedTest *));
+    if (!f->skipped) {
+        return nullptr;
     }
 
     int skipped_tests_count = 0;
-    _flags->skipped_tests[skipped_tests_count++] = nullptr;
-
+    f->skipped[skipped_tests_count] = nullptr;
+    f->argc = 0;
     for (int i = 0; i < argc; i++) {
+        if (argv[i][0] != '-') {
+            f->argv[f->argc++] = strdup(argv[i]);
+            f->argv[f->argc] = nullptr;
+            continue;
+        }
+
         if (strcmp(argv[i], "--skip") == 0 && i + 1 < argc) {
-            _flags->skipped_tests =
-                (char **)reallocarray((void *)_flags->skipped_tests,
-                                      skipped_tests_count + 1, sizeof(char *));
-            if (!_flags->skipped_tests) {
-                perror("skipped tests");
-                return EXIT_FAILURE;
+            SkippedTest **new_skipped = (SkippedTest **)realloc(
+                (void *)f->skipped, 2 * sizeof(SkippedTest *));
+            if (!new_skipped) {
+                return nullptr;
             }
-            _flags->skipped_tests[skipped_tests_count++] = argv[i + 1];
-            _flags->skipped_tests[skipped_tests_count] = nullptr;
+            f->skipped = new_skipped;
+
+            char *argument = strdup(argv[i + 1]);
+            char *basename_bin = strtok(argument, ":");
+            if (!basename_bin) {
+                free(argument);
+                continue;
+            }
+            char *name = strtok(nullptr, ":");
+            if (!name) {
+                free(argument);
+                continue;
+            }
+
+            SkippedTest *t = malloc(sizeof(SkippedTest));
+            if (!t) {
+                free(argument);
+                return nullptr;
+            }
+            *t = (SkippedTest){.basename_bin = strdup(basename_bin),
+                               .name = strdup(name)};
+            free(argument);
+
+            f->skipped[skipped_tests_count++] = t;
+            f->skipped[skipped_tests_count] = nullptr;
+            i++;
+            continue;
         }
         if (strcmp(argv[i], "--no-valgrind") == 0) {
-            _flags->no_valgrind = true;
+            f->no_valgrind = true;
         }
     }
 
-    const Flags *const flags = _flags;
-    _flags = nullptr;
+    return f;
+}
+
+void flags_free(const Flags *f) {
+    for (SkippedTest **_s = f->skipped; *_s != nullptr; _s++) {
+        SkippedTest *s = *_s;
+        if (s->basename_bin) {
+            free((void *)s->basename_bin);
+        }
+        if (s->name) {
+            free((void *)s->name);
+        }
+        free((void *)s);
+    }
+    if (f->skipped) {
+        free((void *)f->skipped);
+    }
+    for (char **a = f->argv; *a != nullptr; a++) {
+        free(*a);
+    }
+    if (f->argv) {
+        free((void *)f->argv);
+    }
+}
+
+int main(int argc, const char **argv) {
+    const Flags *const flags = flags_parse(argc, argv);
+    if (!flags) {
+        perror("flags");
+        return EXIT_FAILURE;
+    }
+
+    if (flags->argc < 3) {
+        return EXIT_FAILURE;
+    }
+
+    const char *p_uc = flags->argv[1];
+    const char *p_bin = flags->argv[2];
 
     char *p_bin_fp = realpath(p_bin, nullptr);
     if (p_bin_fp == NULL) {
@@ -76,9 +150,9 @@ int main(int argc, char **argv) {
     UseCase **_ucs = ucs;
     for (_ucs = ucs; *_ucs != nullptr; _ucs++) {
         UseCase *uc = *_ucs;
-        for (char **c = flags->skipped_tests; c != nullptr && *c != nullptr;
-             c++) {
-            if (strcmp(uc->name, *c) == 0) {
+        for (SkippedTest **s = flags->skipped; s != nullptr && *s != nullptr;
+             s++) {
+            if (strcmp(uc->name, (*s)->name) == 0) {
                 printf("SKIP %s\n", uc->name);
                 goto _continue;
             }
@@ -165,9 +239,9 @@ int main(int argc, char **argv) {
             }
 
             if (as->pass) {
-                printf("PASS %s\n", uc->name);
+                printf("PASS %s; %s\n", p_bin, uc->name);
             } else {
-                printf("FAIL %s; expected=%s actual=%s\n", uc->name,
+                printf("FAIL %s; %s; expected=%s actual=%s\n", p_bin, uc->name,
                        as->expected, as->actual);
                 all_tests_passed = false;
             }
@@ -185,7 +259,7 @@ int main(int argc, char **argv) {
     }
     free(p_bin_fp);
     free((void *)ucs);
-    free((void *)flags->skipped_tests);
+    flags_free(flags);
     free((void *)flags);
 
     if (all_tests_passed) {

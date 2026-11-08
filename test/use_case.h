@@ -24,7 +24,7 @@ typedef struct {
 
 constexpr UseCaseArgv UseCaseArgvEmpty = {.argv = nullptr, .argc = 0};
 
-UseCase **ucs_read(char *path_to_use_cases);
+UseCase **ucs_read(const char *path_to_use_cases);
 int uc_dup_input(UseCase *uc);
 int uc_dup_stdout(UseCase *uc);
 int uc_dup_stderr(UseCase *uc);
