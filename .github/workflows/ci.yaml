@@ -18,4 +18,5 @@ jobs:
       - run: nix develop --command make
       - run: nix develop --command make lint
       - run: nix develop --command make check
-      - run: nix develop --command make valgrind
+      - run: nix develop --command make check-valgrind
+      - run: nix develop --command make test-valgrind

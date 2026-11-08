@@ -23,8 +23,8 @@ $(test_PROGRAM): $(test_OBJS)
 check: CFLAGS += -g
 check: $(test_PROGRAM) $(PROGRAMS)
 	@for t in $(PROGRAMS); do \
-		echo "== ./$(test_PROGRAM)" "test/use-cases/$$t" "$$t"; \
-		"./$(test_PROGRAM)" "test/use-cases/$$t" "$$t"; \
+		echo "== ./$(test_PROGRAM)" "test/use-cases/$$t" "$$t" "--no-valgrind"; \
+		"./$(test_PROGRAM)" "test/use-cases/$$t" "$$t" --no-valgrind; \
 		result=$$?; \
 		if [ $$result -ne 0 ]; then \
 			fail=$$result; \
@@ -40,12 +40,25 @@ clean:
 lint:
 	clang-tidy $(SRCS) $(test_SRCS)
 
-.PHONY: valgrind
-valgrind: CFLAGS += -g
-valgrind: $(test_PROGRAM) $(PROGRAMS)
+.PHONY: check-valgrind
+check-valgrind: CFLAGS += -g
+check-valgrind: $(test_PROGRAM) $(PROGRAMS)
 	@for t in $(PROGRAMS); do \
 		echo "== ./$(test_PROGRAM)" "test/use-cases/$$t" "$$t"; \
-		$(VALGRIND) $(VALGRIND_FLAGS) "./$(test_PROGRAM)" "test/use-cases/$$t" "$$t"; \
+		"./$(test_PROGRAM)" "test/use-cases/$$t" "$$t"; \
+		result=$$?; \
+		if [ $$result -ne 0 ]; then \
+			fail=$$result; \
+		fi; \
+	done; \
+	[ -z $$fail ];
+
+.PHONY: test-valgrind
+test-valgrind: CFLAGS += -g
+test-valgrind: $(test_PROGRAM) $(PROGRAMS)
+	@for t in $(PROGRAMS); do \
+		echo "== ./$(test_PROGRAM)" "test/use-cases/$$t" "$$t" "--no-valgrind"; \
+		$(VALGRIND) $(VALGRIND_FLAGS) "./$(test_PROGRAM)" "test/use-cases/$$t" "$$t" --no-valgrind; \
 		result=$$?; \
 		if [ $$result -ne 0 ]; then \
 			fail=$$result; \
