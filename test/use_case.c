@@ -32,6 +32,7 @@ int uc_dup_input(UseCase *uc) {
     int fd = open(input_path, O_RDONLY);
     free(input_path);
     if (fd == -1 && errno == ENOENT) {
+        close(STDIN_FILENO);
         return 0;
     }
     if (fd == -1) {
